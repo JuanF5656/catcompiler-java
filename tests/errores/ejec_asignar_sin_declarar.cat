@@ -1,0 +1,2 @@
+// Error de ejecución: asignar sin haber declarado con let
+total = 5;

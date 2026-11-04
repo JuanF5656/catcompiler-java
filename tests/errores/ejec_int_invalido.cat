@@ -1,0 +1,2 @@
+// Error de ejecución: int() con texto no numérico
+print(int("doce"));

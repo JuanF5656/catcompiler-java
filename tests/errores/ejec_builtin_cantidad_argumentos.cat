@@ -1,0 +1,2 @@
+// Error de ejecución: una integrada recibe más argumentos de los que acepta
+print(first([1], [2]));

@@ -1,0 +1,14 @@
+// El lado derecho de && y || solo se evalúa si hace falta
+let llamadas = 0;
+function marcar(valor) {
+    llamadas = llamadas + 1;
+    return valor;
+}
+print(false && marcar(true));
+print(true || marcar(false));
+print(llamadas);
+print(true && marcar(false));
+print(false || marcar(true));
+print(llamadas);
+// El cortocircuito evita el error de la división
+print(false && 1 / 0);

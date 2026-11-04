@@ -1,0 +1,8 @@
+// Strings: concatenación, comparación, escapes e índice
+let s = "Cat" + "Compiler";
+print(s, len(s), s[0]);
+print("a" == "a", "a" != "b");
+print("tab:\tfin");
+print("comillas: \"ok\"");
+print("barra: \\");
+print("dos\nlineas");

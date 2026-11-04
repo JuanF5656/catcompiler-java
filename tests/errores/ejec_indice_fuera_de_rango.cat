@@ -1,0 +1,4 @@
+// Error de ejecución: índice fuera de rango
+let lista = [1, 2, 3];
+print(lista[2]);
+print(lista[3]);

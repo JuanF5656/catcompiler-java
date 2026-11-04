@@ -7,10 +7,14 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Definición de función: function(x, y) { return x + y; }
+ * Definición de función:
+ *   function(x, y) { return x + y; }        (anónima, se asigna con let)
+ *   function suma(x, y) { return x + y; }   (con nombre: además la declara)
+ * name es null en las anónimas.
  */
 public class FunctionLiteral implements Expression {
     public final Token token;
+    public Identifier name;
     public List<Identifier> parameters = new ArrayList<>();
     public BlockStatement body;
 
@@ -26,6 +30,7 @@ public class FunctionLiteral implements Expression {
     @Override
     public String toString() {
         String params = parameters.stream().map(Object::toString).collect(Collectors.joining(", "));
-        return tokenLiteral() + "(" + params + ") " + body;
+        String header = name == null ? tokenLiteral() : tokenLiteral() + " " + name;
+        return header + "(" + params + ") " + body;
     }
 }

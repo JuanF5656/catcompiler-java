@@ -1,0 +1,3 @@
+// Error léxico: & solo no existe, el AND lógico es &&
+let a = true;
+if (a & false) { print(1); }

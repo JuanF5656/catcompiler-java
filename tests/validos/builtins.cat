@@ -1,0 +1,13 @@
+// Todas las funciones integradas (menos input)
+print(len("hola"), len([1, 2]), len({"a": 1, "b": 2}));
+print(str(5) + str(true), int("  15 ") * 2, int(true));
+let l = [3];
+print(push(l, 4), first(l), last(l), rest(l));
+print(keys({}), keys({"z": 0}));
+print(type(print), type(if (false) { 1 }));
+// Una integrada se puede sombrear como cualquier variable
+function prueba() {
+    let len = function(x) { return "mi len"; };
+    return len([1, 2, 3]);
+}
+print(prueba(), len([1, 2, 3]));

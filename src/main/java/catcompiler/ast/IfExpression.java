@@ -4,7 +4,8 @@ import catcompiler.token.Token;
 
 /**
  * if (<condición>) { <consecuencia> } else { <alternativa> }
- * alternative puede ser null si no hay else.
+ * alternative puede ser null si no hay else. Un elif se representa como un
+ * alternative que contiene otro IfExpression (ver Parser.parseIfExpression).
  */
 public class IfExpression implements Expression {
     public final Token token;

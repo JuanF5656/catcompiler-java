@@ -1,0 +1,7 @@
+// Error de ejecución: el error sube desde una función anidada y detiene todo
+function c(x) { return x - "uno"; }
+function b(x) { return c(x) * 2; }
+function a(x) { return b(x) + 1; }
+print("inicio");
+print(a(1));
+print("fin");

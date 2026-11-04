@@ -1,0 +1,3 @@
+// Error de ejecución: clave inexistente
+let gato = {"nombre": "Limón"};
+print(gato["edad"]);

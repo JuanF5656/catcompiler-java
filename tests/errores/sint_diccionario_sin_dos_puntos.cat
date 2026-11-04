@@ -1,0 +1,2 @@
+// Error sintáctico: falta ":" entre clave y valor
+let d = {"a" 1};

@@ -1,0 +1,2 @@
+// Error léxico: \q no es un escape válido
+print("linea\q");

@@ -1,0 +1,22 @@
+// Cadena de elif y condicionales anidados
+function nota(n) {
+    if (n >= 90) {
+        return "A";
+    } elif (n >= 80) {
+        return "B";
+    } elif (n >= 70) {
+        if (n == 75) { return "C exacta"; }
+        return "C";
+    } else {
+        return "F";
+    }
+}
+print(nota(95), nota(85), nota(75), nota(71), nota(10));
+
+// Un if sin else que no se cumple produce null
+let r = if (false) { 1 };
+print(r);
+
+// Valores "verdaderos": todo excepto false y null
+if (0) { print("0 es verdadero"); }
+if ("") { print("el string vacío es verdadero"); }

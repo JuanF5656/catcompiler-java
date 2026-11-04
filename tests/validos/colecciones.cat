@@ -1,0 +1,13 @@
+// Listas y diccionarios anidados y modificados
+let inventario = {"frutas": ["manzana"], "total": 1};
+push(inventario["frutas"], "pera");
+inventario["total"] = len(inventario["frutas"]);
+print(inventario);
+
+let matriz = [[1, 2], [3, 4]];
+matriz[1][0] = 30;
+print(matriz, matriz[1][0]);
+
+let d = {1: "uno", true: "sí", "k": [1, {"x": 2}]};
+print(d["k"][1]["x"], d[true], keys(d));
+print(rest([1]), len([]), [1, 2] == [1, 2]);

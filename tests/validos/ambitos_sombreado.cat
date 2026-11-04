@@ -1,0 +1,27 @@
+// Sombreado en tres niveles y asignación al ámbito más cercano
+let x = 1;
+function nivel1() {
+    let x = 2;
+    function nivel2() {
+        let x = 3;
+        print("nivel2:", x);
+    }
+    nivel2();
+    print("nivel1:", x);
+}
+nivel1();
+print("global:", x);
+
+// La asignación sin let modifica la variable más cercana que exista
+let contador = 0;
+function sumarUno() {
+    contador = contador + 1;
+}
+sumarUno();
+sumarUno();
+print("contador:", contador);
+
+// La variable del for no existe fuera de él
+let i = "afuera";
+for (let i = 0; i < 2; i = i + 1) { }
+print("i:", i);

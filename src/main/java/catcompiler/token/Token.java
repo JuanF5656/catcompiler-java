@@ -3,9 +3,11 @@ package catcompiler.token;
 import java.util.Map;
 
 /**
- * Token: unidad mínima que produce el Lexer (tipo + texto literal).
+ * Token: unidad mínima que produce el Lexer (tipo + texto literal + posición).
+ * La línea y la columna viajan con el token para que el parser y el evaluador
+ * puedan señalar exactamente dónde está un error, sin volver a mirar el texto.
  */
-public record Token(TokenType type, String literal) {
+public record Token(TokenType type, String literal, int line, int column) {
 
     private static final Map<String, TokenType> KEYWORDS = Map.ofEntries(
             Map.entry("function", TokenType.FUNCTION),
@@ -27,9 +29,14 @@ public record Token(TokenType type, String literal) {
         return KEYWORDS.getOrDefault(ident, TokenType.IDENT);
     }
 
-    /** Mismo formato que fmt.Printf("%+v") en Go: {Type:LET Literal:let} */
+    /** Prefijo común de todos los mensajes de error: "[línea L, col C]". */
+    public String position() {
+        return "[línea " + line + ", col " + column + "]";
+    }
+
+    /** Mismo formato que la versión en Go, más la posición: {Type:LET Literal:let Pos:1:1} */
     @Override
     public String toString() {
-        return "{Type:" + type + " Literal:" + literal + "}";
+        return "{Type:" + type + " Literal:" + literal + " Pos:" + line + ":" + column + "}";
     }
 }

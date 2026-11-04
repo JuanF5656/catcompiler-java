@@ -5,6 +5,7 @@ import catcompiler.token.TokenType;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LexerTest {
 
@@ -147,5 +148,52 @@ for while
             assertEquals(expectedLiteral, tok.literal(),
                     "tests[" + i + "] - literal wrong");
         }
+    }
+
+    @Test
+    void testStringsOperadoresYComentarios() {
+        Lexer l = new Lexer("\"a\\n\\t\\\"\\\\b\" % && || : x1 // comentario\n");
+        Object[][] tests = {
+                {TokenType.STRING, "a\n\t\"\\b"},
+                {TokenType.PERCENT, "%"},
+                {TokenType.AND, "&&"},
+                {TokenType.OR, "||"},
+                {TokenType.COLON, ":"},
+                {TokenType.IDENT, "x1"},
+                {TokenType.EOF, ""},
+        };
+        for (Object[] t : tests) {
+            Token tok = l.nextToken();
+            assertEquals(t[0], tok.type());
+            assertEquals(t[1], tok.literal());
+        }
+        assertTrue(l.errors().isEmpty());
+    }
+
+    @Test
+    void testLineaYColumna() {
+        Lexer l = new Lexer("let x = 5;\n  x == 10");
+        int[][] expected = {{1, 1}, {1, 5}, {1, 7}, {1, 9}, {1, 10}, {2, 3}, {2, 5}, {2, 8}};
+        for (int[] pos : expected) {
+            Token tok = l.nextToken();
+            assertEquals(pos[0], tok.line(), "línea de " + tok);
+            assertEquals(pos[1], tok.column(), "columna de " + tok);
+        }
+    }
+
+    @Test
+    void testErroresLexicos() {
+        assertLexError("let a = 5 @ 3;", "Error léxico [línea 1, col 11]: carácter ilegal '@'");
+        assertLexError("let s = \"hola;\nlet t = 1;", "Error léxico [línea 1, col 9]: string sin cerrar");
+        assertLexError("a & b", "Error léxico [línea 1, col 3]: carácter ilegal '&' (¿quisiste decir '&&'?)");
+        assertLexError("\"a\\q\"", "Error léxico [línea 1, col 1]: secuencia de escape inválida '\\q' en string");
+    }
+
+    private void assertLexError(String input, String expectedMessage) {
+        Lexer l = new Lexer(input);
+        while (l.nextToken().type() != TokenType.EOF) {
+            // consumimos todo para que el lexer registre los errores
+        }
+        assertEquals(expectedMessage, l.errors().get(0));
     }
 }

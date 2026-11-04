@@ -1,0 +1,3 @@
+// Error de ejecución: una lista no puede ser clave de diccionario
+let d = {};
+d[[1, 2]] = "x";

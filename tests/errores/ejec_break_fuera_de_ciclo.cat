@@ -1,0 +1,5 @@
+// Error de ejecución: break fuera de un ciclo
+function f() {
+    break;
+}
+f();

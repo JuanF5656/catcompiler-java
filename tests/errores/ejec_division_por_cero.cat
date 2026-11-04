@@ -1,0 +1,6 @@
+// Error de ejecución: división por cero dentro de una función
+function promedio(suma, n) {
+    return suma / n;
+}
+print(promedio(10, 2));
+print(promedio(10, 0));

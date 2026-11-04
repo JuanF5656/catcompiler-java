@@ -1,0 +1,3 @@
+// Error de ejecución: recursión sin caso base
+function infinita(n) { return infinita(n + 1); }
+infinita(0);

@@ -1,0 +1,2 @@
+// Error de ejecución: una integrada recibe un tipo que no acepta
+print(len(42));

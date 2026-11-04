@@ -11,6 +11,7 @@ public enum TokenType {
     // Identificadores + literales
     IDENT("IDENT"), // add, foobar, x, y, ...
     INT("INT"),     // 1343456
+    STRING("STRING"), // "hola"
 
     // Operadores
     ASSIGN("="),
@@ -19,6 +20,10 @@ public enum TokenType {
     BANG("!"),
     ASTERISK("*"),
     SLASH("/"),
+    PERCENT("%"),
+
+    AND("&&"),
+    OR("||"),
 
     LT("<"),
     GT(">"),
@@ -33,6 +38,7 @@ public enum TokenType {
     // Delimitadores
     COMMA(","),
     SEMICOLON(";"),
+    COLON(":"),
 
     LPAREN("("),
     RPAREN(")"),

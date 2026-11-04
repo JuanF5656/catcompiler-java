@@ -1,0 +1,2 @@
+// Error de ejecución: módulo por cero
+print(7 % 0);

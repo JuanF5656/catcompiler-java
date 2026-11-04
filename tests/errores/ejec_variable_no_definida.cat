@@ -1,0 +1,4 @@
+// Error de ejecución: variable no definida (la ejecución se detiene)
+print("antes");
+print(contador + 1);
+print("esto no se imprime");

@@ -1,0 +1,20 @@
+// Recursión: fibonacci, factorial y recursión mutua
+function fib(n) {
+    if (n < 2) { return n; }
+    return fib(n - 1) + fib(n - 2);
+}
+let fibs = [];
+for (let i = 0; i <= 10; i = i + 1) {
+    push(fibs, fib(i));
+}
+print(fibs);
+
+let factorial = function(n) {
+    if (n == 0) { return 1; }
+    return n * factorial(n - 1);
+};
+print(factorial(12));
+
+function esPar(n) { if (n == 0) { return true; } return esImpar(n - 1); }
+function esImpar(n) { if (n == 0) { return false; } return esPar(n - 1); }
+print(esPar(10), esImpar(7));

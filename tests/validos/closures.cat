@@ -1,0 +1,16 @@
+// Closures: cada llamada captura su propio entorno
+function crearCuenta(saldo) {
+    return {
+        "depositar": function(monto) { saldo = saldo + monto; return saldo; },
+        "consultar": function() { return saldo; }
+    };
+}
+let a = crearCuenta(100);
+let b = crearCuenta(5);
+a["depositar"](50);
+b["depositar"](1);
+print(a["consultar"](), b["consultar"]());
+
+// Función que se pasa y se devuelve
+function aplicarDosVeces(f, x) { return f(f(x)); }
+print(aplicarDosVeces(function(n) { return n * 3; }, 2));

@@ -1,0 +1,3 @@
+// Error de ejecución: tipos incompatibles
+let edad = 20;
+print("edad: " + edad);

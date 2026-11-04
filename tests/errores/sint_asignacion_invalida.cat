@@ -1,0 +1,3 @@
+// Error sintáctico: solo se puede asignar a una variable o a lista[i]
+let x = 1;
+x + 1 = 5;

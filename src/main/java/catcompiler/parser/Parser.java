@@ -17,22 +17,34 @@ import java.util.function.Supplier;
  * Usa "Pratt Parsing" (Top-Down Operator Precedence).
  *
  * Ejemplo: "1 + 2 * 3" -> (1 + (2 * 3))
+ *
+ * Política de errores: solo se guarda el PRIMER error y se deja de parsear.
+ * Después de un error el parser queda desalineado y todo lo que reporte
+ * serían errores "en cascada" que confunden más de lo que ayudan.
  */
 public class Parser {
 
     // ======================= TABLA DE PRECEDENCIAS =======================
+    // De menor a mayor. Un operador "atrapa" a sus operandos antes que los de
+    // menor precedencia: en a || b && c, el && se agrupa primero.
     public static final int LOWEST = 1;      // el piso
-    public static final int EQUALS = 2;      // == !=
-    public static final int LESSGREATER = 3; // < > <= >=
-    public static final int SUM = 4;         // + -
-    public static final int PRODUCT = 5;     // * /
-    public static final int PREFIX = 6;      // -X !X
-    public static final int EXPONENT = 7;    // **
-    public static final int CALL = 8;        // miFuncion(X)
+    public static final int ASSIGN = 2;      // x = valor   (derecha-asociativo)
+    public static final int OR = 3;          // ||
+    public static final int AND = 4;         // &&
+    public static final int EQUALS = 5;      // == !=
+    public static final int LESSGREATER = 6; // < > <= >=
+    public static final int SUM = 7;         // + -
+    public static final int PRODUCT = 8;     // * / %
+    public static final int EXPONENT = 9;    // **          (derecha-asociativo)
+    public static final int PREFIX = 10;     // -X !X
+    public static final int CALL = 11;       // miFuncion(X)  lista[i]
 
     private static final Map<TokenType, Integer> PRECEDENCES = new EnumMap<>(TokenType.class);
 
     static {
+        PRECEDENCES.put(TokenType.ASSIGN, ASSIGN);
+        PRECEDENCES.put(TokenType.OR, OR);
+        PRECEDENCES.put(TokenType.AND, AND);
         PRECEDENCES.put(TokenType.EQ, EQUALS);
         PRECEDENCES.put(TokenType.NOT_EQ, EQUALS);
         PRECEDENCES.put(TokenType.LT, LESSGREATER);
@@ -43,8 +55,10 @@ public class Parser {
         PRECEDENCES.put(TokenType.MINUS, SUM);
         PRECEDENCES.put(TokenType.SLASH, PRODUCT);
         PRECEDENCES.put(TokenType.ASTERISK, PRODUCT);
+        PRECEDENCES.put(TokenType.PERCENT, PRODUCT);
         PRECEDENCES.put(TokenType.POW, EXPONENT);
         PRECEDENCES.put(TokenType.LPAREN, CALL);
+        PRECEDENCES.put(TokenType.LBRACKET, CALL);
     }
 
     // ============================== ESTADO ==============================
@@ -66,11 +80,14 @@ public class Parser {
         // Registro de funciones PREFIX
         prefixParseFns.put(TokenType.IDENT, this::parseIdentifier);
         prefixParseFns.put(TokenType.INT, this::parseIntegerLiteral);
+        prefixParseFns.put(TokenType.STRING, this::parseStringLiteral);
         prefixParseFns.put(TokenType.BANG, this::parsePrefixExpression);
         prefixParseFns.put(TokenType.MINUS, this::parsePrefixExpression);
         prefixParseFns.put(TokenType.TRUE, this::parseBoolean);
         prefixParseFns.put(TokenType.FALSE, this::parseBoolean);
         prefixParseFns.put(TokenType.LPAREN, this::parseGroupedExpression);
+        prefixParseFns.put(TokenType.LBRACKET, this::parseArrayLiteral);
+        prefixParseFns.put(TokenType.LBRACE, this::parseHashLiteral);
         prefixParseFns.put(TokenType.IF, this::parseIfExpression);
         prefixParseFns.put(TokenType.FUNCTION, this::parseFunctionLiteral);
         prefixParseFns.put(TokenType.WHILE, this::parseWhileExpression);
@@ -78,11 +95,13 @@ public class Parser {
 
         // Registro de funciones INFIX
         for (TokenType t : List.of(TokenType.PLUS, TokenType.MINUS, TokenType.SLASH, TokenType.ASTERISK,
-                TokenType.EQ, TokenType.NOT_EQ, TokenType.LT, TokenType.GT,
-                TokenType.LTE, TokenType.GTE, TokenType.POW)) {
+                TokenType.PERCENT, TokenType.EQ, TokenType.NOT_EQ, TokenType.LT, TokenType.GT,
+                TokenType.LTE, TokenType.GTE, TokenType.POW, TokenType.AND, TokenType.OR)) {
             infixParseFns.put(t, this::parseInfixExpression);
         }
+        infixParseFns.put(TokenType.ASSIGN, this::parseAssignExpression);
         infixParseFns.put(TokenType.LPAREN, this::parseCallExpression);
+        infixParseFns.put(TokenType.LBRACKET, this::parseIndexExpression);
 
         // Leemos dos tokens para llenar curToken y peekToken
         nextToken();
@@ -100,10 +119,10 @@ public class Parser {
 
     // ========================== PUNTO DE ENTRADA ==========================
 
-    /** Lee todos los tokens hasta EOF y construye el nodo raíz Program. */
+    /** Lee todos los tokens hasta EOF (o hasta el primer error) y construye el nodo raíz Program. */
     public Program parseProgram() {
         Program program = new Program();
-        while (curToken.type() != TokenType.EOF) {
+        while (!curTokenIs(TokenType.EOF) && errors.isEmpty()) {
             Statement stmt = parseStatement();
             if (stmt != null) {
                 program.statements.add(stmt);
@@ -114,14 +133,12 @@ public class Parser {
     }
 
     private Statement parseStatement() {
-        switch (curToken.type()) {
-            case LET:
-                return parseLetStatement();
-            case RETURN:
-                return parseReturnStatement();
-            default:
-                return parseExpressionStatement();
-        }
+        return switch (curToken.type()) {
+            case LET -> parseLetStatement();
+            case RETURN -> parseReturnStatement();
+            case BREAK -> parseBreakStatement();
+            default -> parseExpressionStatement();
+        };
     }
 
     // ============================= SENTENCIAS =============================
@@ -141,21 +158,25 @@ public class Parser {
 
         nextToken();
         stmt.value = parseExpression(LOWEST);
-
-        if (peekTokenIs(TokenType.SEMICOLON)) {
-            nextToken();
-        }
+        skipOptionalSemicolon();
         return stmt;
     }
 
-    /** RETURN <EXPRESIÓN> ; */
+    /** RETURN [<EXPRESIÓN>] ;   (sin expresión retorna null) */
     private ReturnStatement parseReturnStatement() {
         ReturnStatement stmt = new ReturnStatement(curToken);
-        nextToken();
-        stmt.returnValue = parseExpression(LOWEST);
-        if (peekTokenIs(TokenType.SEMICOLON)) {
+        if (!peekTokenIs(TokenType.SEMICOLON) && !peekTokenIs(TokenType.RBRACE)) {
             nextToken();
+            stmt.returnValue = parseExpression(LOWEST);
         }
+        skipOptionalSemicolon();
+        return stmt;
+    }
+
+    /** BREAK ; */
+    private BreakStatement parseBreakStatement() {
+        BreakStatement stmt = new BreakStatement(curToken);
+        skipOptionalSemicolon();
         return stmt;
     }
 
@@ -163,10 +184,15 @@ public class Parser {
     private ExpressionStatement parseExpressionStatement() {
         ExpressionStatement stmt = new ExpressionStatement(curToken);
         stmt.expression = parseExpression(LOWEST);
+        skipOptionalSemicolon();
+        return stmt;
+    }
+
+    /** El ';' es opcional al final de una sentencia. */
+    private void skipOptionalSemicolon() {
         if (peekTokenIs(TokenType.SEMICOLON)) {
             nextToken();
         }
-        return stmt;
     }
 
     /** Todo lo que está dentro de { ... } */
@@ -174,12 +200,15 @@ public class Parser {
         BlockStatement block = new BlockStatement(curToken);
         nextToken(); // saltamos "{"
 
-        while (!curTokenIs(TokenType.RBRACE) && !curTokenIs(TokenType.EOF)) {
+        while (!curTokenIs(TokenType.RBRACE) && !curTokenIs(TokenType.EOF) && errors.isEmpty()) {
             Statement stmt = parseStatement();
             if (stmt != null) {
                 block.statements.add(stmt);
             }
             nextToken();
+        }
+        if (curTokenIs(TokenType.EOF)) {
+            expectedError(TokenType.RBRACE, curToken);
         }
         return block;
     }
@@ -193,7 +222,7 @@ public class Parser {
         // 1. Buscar la función PREFIX del token actual
         Supplier<Expression> prefix = prefixParseFns.get(curToken.type());
         if (prefix == null) {
-            noPrefixParseFnError(curToken.type());
+            syntaxError(curToken, "expresión inválida, no se esperaba " + describe(curToken));
             return null;
         }
 
@@ -201,11 +230,9 @@ public class Parser {
         Expression leftExp = prefix.get();
 
         // 3. El loop de Pratt
-        while (!peekTokenIs(TokenType.SEMICOLON) && precedence < peekPrecedence()) {
+        while (!peekTokenIs(TokenType.SEMICOLON) && precedence < peekPrecedence()
+                && !closesBlockAtEndOfLine() && errors.isEmpty()) {
             Function<Expression, Expression> infix = infixParseFns.get(peekToken.type());
-            if (infix == null) {
-                return leftExp;
-            }
             nextToken();               // avanzamos al operador
             leftExp = infix.apply(leftExp);
         }
@@ -223,10 +250,14 @@ public class Parser {
         try {
             lit.value = Long.parseLong(curToken.literal());
         } catch (NumberFormatException e) {
-            errors.add("No se pudo parsear \"" + curToken.literal() + "\" como entero");
+            syntaxError(curToken, "el entero " + curToken.literal() + " es demasiado grande");
             return null;
         }
         return lit;
+    }
+
+    private Expression parseStringLiteral() {
+        return new StringLiteral(curToken);
     }
 
     /** -5  !true */
@@ -251,64 +282,125 @@ public class Parser {
         return exp;
     }
 
-    /** if (<condición>) { ... } else { ... } */
+    /** [1, 2, 3] */
+    private Expression parseArrayLiteral() {
+        ArrayLiteral array = new ArrayLiteral(curToken);
+        array.elements = parseExpressionList(TokenType.RBRACKET);
+        return array.elements == null ? null : array;
+    }
+
+    /**
+     * {clave: valor, ...}. Un '{' al inicio de una expresión siempre es un
+     * diccionario: los bloques solo aparecen después de if/while/for/function,
+     * y esos los parsea parseBlockStatement directamente, sin pasar por aquí.
+     */
+    private Expression parseHashLiteral() {
+        HashLiteral hash = new HashLiteral(curToken);
+        while (!peekTokenIs(TokenType.RBRACE)) {
+            nextToken();
+            Expression key = parseExpression(LOWEST);
+            if (!expectPeek(TokenType.COLON)) {
+                return null;
+            }
+            nextToken();
+            hash.pairs.add(new HashLiteral.Pair(key, parseExpression(LOWEST)));
+            if (!peekTokenIs(TokenType.RBRACE) && !expectPeek(TokenType.COMMA)) {
+                return null;
+            }
+        }
+        nextToken(); // saltamos "}"
+        return hash;
+    }
+
+    /**
+     * if (<cond>) { ... } elif (<cond>) { ... } else { ... }
+     * Un elif se guarda como un else cuyo bloque contiene otro if: así el
+     * evaluador no necesita saber que elif existe.
+     */
     private Expression parseIfExpression() {
         IfExpression expression = new IfExpression(curToken);
+        expression.condition = parseCondition();
+        if (expression.condition == null) return null;
+        expression.consequence = parseBody();
+        if (expression.consequence == null) return null;
 
-        if (!expectPeek(TokenType.LPAREN)) return null;
-        nextToken();
-        expression.condition = parseExpression(LOWEST);
-        if (!expectPeek(TokenType.RPAREN)) return null;
-        if (!expectPeek(TokenType.LBRACE)) return null;
-
-        expression.consequence = parseBlockStatement();
-
-        if (peekTokenIs(TokenType.ELSE)) {
+        if (peekTokenIs(TokenType.ELIF)) {
             nextToken();
-            if (!expectPeek(TokenType.LBRACE)) return null;
-            expression.alternative = parseBlockStatement();
+            expression.alternative = wrapInBlock(parseIfExpression());
+            if (expression.alternative == null) return null;
+        } else if (peekTokenIs(TokenType.ELSE)) {
+            nextToken();
+            expression.alternative = parseBody();
+            if (expression.alternative == null) return null;
         }
         return expression;
+    }
+
+    private BlockStatement wrapInBlock(Expression expression) {
+        if (expression == null) {
+            return null;
+        }
+        ExpressionStatement stmt = new ExpressionStatement(curToken);
+        stmt.expression = expression;
+        BlockStatement block = new BlockStatement(curToken);
+        block.statements.add(stmt);
+        return block;
     }
 
     /** while (<condición>) { ... } */
     private Expression parseWhileExpression() {
         WhileExpression expression = new WhileExpression(curToken);
-
-        if (!expectPeek(TokenType.LPAREN)) return null;
-        nextToken();
-        expression.condition = parseExpression(LOWEST);
-        if (!expectPeek(TokenType.RPAREN)) return null;
-        if (!expectPeek(TokenType.LBRACE)) return null;
-
-        expression.body = parseBlockStatement();
-        return expression;
+        expression.condition = parseCondition();
+        if (expression.condition == null) return null;
+        expression.body = parseBody();
+        return expression.body == null ? null : expression;
     }
 
-    /** for (<condición>) { ... } */
+    /**
+     * for (<condición>) { ... }   o   for (<init>; <condición>; <update>) { ... }
+     * Se distinguen por el ';' después de la primera parte.
+     */
     private Expression parseForExpression() {
         ForExpression expression = new ForExpression(curToken);
-
         if (!expectPeek(TokenType.LPAREN)) return null;
         nextToken();
-        expression.condition = parseExpression(LOWEST);
-        if (!expectPeek(TokenType.RPAREN)) return null;
-        if (!expectPeek(TokenType.LBRACE)) return null;
 
-        expression.body = parseBlockStatement();
-        return expression;
+        Statement first = curTokenIs(TokenType.LET) ? parseLetStatement() : parseExpressionStatement();
+        if (first == null) return null;
+
+        if (curTokenIs(TokenType.SEMICOLON)) {
+            expression.init = first;
+            nextToken();
+            expression.condition = parseExpression(LOWEST);
+            if (!expectPeek(TokenType.SEMICOLON)) return null;
+            nextToken();
+            expression.update = parseExpression(LOWEST);
+        } else if (first instanceof ExpressionStatement stmt) {
+            expression.condition = stmt.expression;
+        } else {
+            expectedError(TokenType.SEMICOLON, peekToken); // "for (let i = 0)" sin el resto
+            return null;
+        }
+
+        if (!expectPeek(TokenType.RPAREN)) return null;
+        expression.body = parseBody();
+        return expression.body == null ? null : expression;
     }
 
-    /** function(<params>) { ... } */
+    /** function [nombre](<params>) { ... } */
     private Expression parseFunctionLiteral() {
         FunctionLiteral lit = new FunctionLiteral(curToken);
 
+        if (peekTokenIs(TokenType.IDENT)) {
+            nextToken();
+            lit.name = new Identifier(curToken, curToken.literal());
+        }
         if (!expectPeek(TokenType.LPAREN)) return null;
         lit.parameters = parseFunctionParameters();
-        if (!expectPeek(TokenType.LBRACE)) return null;
+        if (lit.parameters == null) return null;
 
-        lit.body = parseBlockStatement();
-        return lit;
+        lit.body = parseBody();
+        return lit.body == null ? null : lit;
     }
 
     private List<Identifier> parseFunctionParameters() {
@@ -319,63 +411,108 @@ public class Parser {
             return identifiers;
         }
 
-        nextToken();
-        identifiers.add(new Identifier(curToken, curToken.literal()));
-
-        while (peekTokenIs(TokenType.COMMA)) {
-            nextToken(); // saltamos la coma
-            nextToken(); // siguiente parámetro
+        do {
+            if (!identifiers.isEmpty()) {
+                nextToken(); // saltamos la coma
+            }
+            if (!expectPeek(TokenType.IDENT)) return null;
             identifiers.add(new Identifier(curToken, curToken.literal()));
-        }
+        } while (peekTokenIs(TokenType.COMMA));
 
-        if (!expectPeek(TokenType.RPAREN)) {
-            return new ArrayList<>();
-        }
-        return identifiers;
+        return expectPeek(TokenType.RPAREN) ? identifiers : null;
     }
 
     // ========================== FUNCIONES INFIX ==========================
 
-    /** 5 + 3, x == y, 2 ** 3 ... (recibe lo que ya se parseó a la izquierda) */
+    /** 5 + 3, x == y, a && b, 2 ** 3 ... (recibe lo que ya se parseó a la izquierda) */
     private Expression parseInfixExpression(Expression left) {
         InfixExpression expression = new InfixExpression(curToken, curToken.literal(), left);
         int precedence = curPrecedence();
+        // Truco de Pratt para asociar a la derecha: el lado derecho se parsea con
+        // precedencia un poco MENOR, así otro ** a su derecha sí lo "atrapa".
+        // 2 ** 3 ** 2 -> (2 ** (3 ** 2))
+        if (curTokenIs(TokenType.POW)) {
+            precedence--;
+        }
         nextToken();
         expression.right = parseExpression(precedence);
+        return expression;
+    }
+
+    /**
+     * x = valor  /  lista[i] = valor. También derecha-asociativo (a = b = 1),
+     * por eso el valor se parsea con LOWEST (= ASSIGN - 1).
+     */
+    private Expression parseAssignExpression(Expression target) {
+        if (!(target instanceof Identifier) && !(target instanceof IndexExpression)) {
+            syntaxError(curToken, "no se puede asignar a " + target + "; solo a una variable o a lista[i]");
+            return null;
+        }
+        AssignExpression expression = new AssignExpression(curToken, target);
+        nextToken();
+        expression.value = parseExpression(LOWEST);
         return expression;
     }
 
     /** add(2, 3): se activa al ver "(" después de una expresión */
     private Expression parseCallExpression(Expression function) {
         CallExpression exp = new CallExpression(curToken, function);
-        exp.arguments = parseCallArguments();
-        return exp;
+        exp.arguments = parseExpressionList(TokenType.RPAREN);
+        return exp.arguments == null ? null : exp;
     }
 
-    private List<Expression> parseCallArguments() {
-        List<Expression> args = new ArrayList<>();
+    /** lista[0]: se activa al ver "[" después de una expresión */
+    private Expression parseIndexExpression(Expression left) {
+        IndexExpression exp = new IndexExpression(curToken, left);
+        nextToken();
+        exp.index = parseExpression(LOWEST);
+        return expectPeek(TokenType.RBRACKET) ? exp : null;
+    }
 
-        if (peekTokenIs(TokenType.RPAREN)) { // add() sin argumentos
+    /** Lista de expresiones separadas por coma hasta `end`: argumentos o elementos de lista. */
+    private List<Expression> parseExpressionList(TokenType end) {
+        List<Expression> list = new ArrayList<>();
+
+        if (peekTokenIs(end)) { // f() o [] vacíos
             nextToken();
-            return args;
+            return list;
         }
 
         nextToken();
-        args.add(parseExpression(LOWEST));
+        list.add(parseExpression(LOWEST));
 
         while (peekTokenIs(TokenType.COMMA)) {
             nextToken();
             nextToken();
-            args.add(parseExpression(LOWEST));
+            list.add(parseExpression(LOWEST));
         }
 
-        if (!expectPeek(TokenType.RPAREN)) {
-            return new ArrayList<>();
-        }
-        return args;
+        return expectPeek(end) ? list : null;
     }
 
     // ============================== HELPERS ==============================
+
+    /** ( <expresión> ) de if y while. */
+    private Expression parseCondition() {
+        if (!expectPeek(TokenType.LPAREN)) return null;
+        nextToken();
+        Expression condition = parseExpression(LOWEST);
+        return expectPeek(TokenType.RPAREN) ? condition : null;
+    }
+
+    /** { ... } obligatorio después de if/elif/else/while/for/function. */
+    private BlockStatement parseBody() {
+        return expectPeek(TokenType.LBRACE) ? parseBlockStatement() : null;
+    }
+
+    /**
+     * Como el ';' es opcional, sin esta regla "if (c) { 1 }" seguido de una
+     * línea que empieza con "-1" o "(x)" se leería como una resta o una
+     * llamada. Una expresión que termina en "}" al final de la línea se corta ahí.
+     */
+    private boolean closesBlockAtEndOfLine() {
+        return curTokenIs(TokenType.RBRACE) && peekToken.line() > curToken.line();
+    }
 
     private boolean curTokenIs(TokenType t) {
         return curToken.type() == t;
@@ -391,16 +528,48 @@ public class Parser {
             nextToken();
             return true;
         }
-        peekError(t);
+        expectedError(t, peekToken);
         return false;
     }
 
-    private void peekError(TokenType t) {
-        errors.add("Error sintáctico: Se esperaba el token " + t + ", se obtuvo " + peekToken.type());
+    private void expectedError(TokenType expected, Token found) {
+        syntaxError(found, "se esperaba " + describe(expected) + " pero se encontró " + describe(found));
     }
 
-    private void noPrefixParseFnError(TokenType t) {
-        errors.add("No se encontró función de parseo (prefix) para el token " + t);
+    /**
+     * Registra un error sintáctico (solo el primero, ver comentario de la clase).
+     * Si el lexer ya encontró un error léxico, ese se reporta en su lugar: el
+     * error sintáctico casi siempre es consecuencia del token ILLEGAL.
+     */
+    private void syntaxError(Token at, String detail) {
+        if (!errors.isEmpty()) {
+            return;
+        }
+        if (!lexer.errors().isEmpty()) {
+            errors.add(lexer.errors().get(0));
+        } else {
+            errors.add("Error sintáctico " + at.position() + ": " + detail);
+        }
+    }
+
+    /** Nombre legible de un tipo de token para los mensajes ("')'", "un identificador"). */
+    private static String describe(TokenType t) {
+        return switch (t) {
+            case IDENT -> "un identificador";
+            case INT -> "un entero";
+            case STRING -> "un string";
+            case EOF -> "el fin del archivo";
+            default -> "'" + t.getValue().toLowerCase() + "'";
+        };
+    }
+
+    /** Cómo se muestra el token que realmente apareció. */
+    private static String describe(Token t) {
+        return switch (t.type()) {
+            case EOF -> "el fin del archivo";
+            case STRING -> "\"" + t.literal() + "\"";
+            default -> "'" + t.literal() + "'";
+        };
     }
 
     private int peekPrecedence() {

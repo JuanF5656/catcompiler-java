@@ -1,0 +1,2 @@
+// Error sintáctico: let sin nombre de variable
+let = 10;

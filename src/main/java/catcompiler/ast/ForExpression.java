@@ -3,11 +3,16 @@ package catcompiler.ast;
 import catcompiler.token.Token;
 
 /**
- * for (<condición>) { <cuerpo> }  (por ahora igual que while)
+ * Dos formas:
+ *   for (<condición>) { <cuerpo> }                         (igual que while)
+ *   for (<init>; <condición>; <actualización>) { <cuerpo> } (estilo C)
+ * En la primera forma init y update quedan en null.
  */
 public class ForExpression implements Expression {
     public final Token token;
+    public Statement init;
     public Expression condition;
+    public Expression update;
     public BlockStatement body;
 
     public ForExpression(Token token) {
@@ -21,6 +26,9 @@ public class ForExpression implements Expression {
 
     @Override
     public String toString() {
-        return "for" + condition + " " + body;
+        if (init == null) {
+            return "for" + condition + " " + body;
+        }
+        return "for(" + init + " " + condition + "; " + update + ") " + body;
     }
 }
