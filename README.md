@@ -216,5 +216,5 @@ Error de ejecución [línea 4, col 12]: índice fuera de rango: 3 (tamaño 3)
 
 ## Integrantes
 
-- Juan Felipe Artheotua
-- [INTEGRANTE 2]
+- Juan Felipe Atehortua
+- Thomas González 
